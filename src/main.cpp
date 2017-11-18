@@ -240,6 +240,23 @@ int main() {
 
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+
+			double dist_inc = 0.5;
+			for(int i = 0; i < 50; i++)
+			{
+				double next_s = car_s + (i + 1) * dist_inc;
+				double next_d = 6;//We are 1.5 lanes away from yellow lane(where waypoints are measured from)
+
+				vector<double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+				double next_x = xy[0];
+				double next_y = xy[1];
+
+				next_x_vals.push_back(next_x);
+				next_y_vals.push_back(next_y);
+			}
+
+
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
 
