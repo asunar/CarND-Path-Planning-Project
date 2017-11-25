@@ -197,10 +197,14 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
+		int lane = 1; //Left-middle-right lanes => 0-1-2 respectively
+
+		//reference velocity to target
+		double ref_vel = 49.5; //mph
 
 
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  h.onMessage([&lane, &ref_vel,&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -209,6 +213,7 @@ int main() {
     //cout << sdata << endl;
     if (length && length > 2 && data[0] == '4' && data[1] == '2') {
 
+	
       auto s = hasData(data);
 
       if (s != "") {
@@ -219,10 +224,7 @@ int main() {
         if (event == "telemetry") {
           // j[1] is the data JSON object
           
-			int lane = 1; //Left-middle-right lanes => 0-1-2 respectively
 
-			//reference velocity to target
-			double ref_vel = 49.5; //mph
 
         	// Main car's localization Data
           	double car_x = j[1]["x"];
@@ -247,6 +249,32 @@ int main() {
 			int prev_size = previous_path_x.size();
 
           	json msgJson;
+
+			if(prev_size > 0) {
+				car_s = end_path_s;
+			}
+
+			bool too_close = false;
+
+			// find ref_v to use
+			for(int i = 0; i < sensor_fusion.size(); i++) {
+				float d = sensor_fusion[i][6];
+				if(d < (2 + (4 * lane) + 2) &&  d > (2 + (4 * lane) - 2 )) {
+					double vx = sensor_fusion[i][3];
+					double vy = sensor_fusion[i][4];
+					double check_speed = sqrt(vx * vx + vy * vy);
+					double check_car_s = sensor_fusion[i][5];
+
+					// If using previous points can project a value out
+					check_car_s += ( (double)prev_size * .02 * check_speed );
+
+					// check s values greater than our car and s gap
+					if( (check_car_s > car_s) && ( (check_car_s - car_s ) < 30 ) ){
+						//Do some logic here, lower reference velocity to avoid crash, could also flag to change lanes
+						ref_vel = 29.5; //mph
+					}
+				}
+			}
 
 			// Create a list of widely spaced (x, y) waypoints, evenly spaced at 30m
 			// Later we will interpolate these waypoints with a spline and fill it with more points that control speed
