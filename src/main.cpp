@@ -200,7 +200,7 @@ int main() {
 		int lane = 1; //Left-middle-right lanes => 0-1-2 respectively
 
 		//reference velocity to target
-		double ref_vel = 49.5; //mph
+		double ref_vel = 0; //mph
 
 
 
@@ -271,10 +271,19 @@ int main() {
 					// check s values greater than our car and s gap
 					if( (check_car_s > car_s) && ( (check_car_s - car_s ) < 30 ) ){
 						//Do some logic here, lower reference velocity to avoid crash, could also flag to change lanes
-						ref_vel = 29.5; //mph
+						//ref_vel = 29.5; //mph
+						too_close = true;
 					}
 				}
 			}
+
+			if(too_close){
+				ref_vel -= .224;
+			}
+			else if (ref_vel < 49.5){
+				ref_vel += .224;
+			}
+
 
 			// Create a list of widely spaced (x, y) waypoints, evenly spaced at 30m
 			// Later we will interpolate these waypoints with a spline and fill it with more points that control speed
