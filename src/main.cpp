@@ -9,6 +9,7 @@
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
 #include "spline.h"
+#include <unordered_map>
 
 using namespace std;
 
@@ -160,6 +161,103 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 
 }
 
+bool isCarInLane(float d, int lane){
+	//lane is 4m wide
+	return d < (2 + (4 * lane) + 2) &&  d > (2 + (4 * lane) - 2 );
+
+}
+
+bool isCarClose(double check_car_s, double car_s){
+	return ( (check_car_s - car_s ) < 30 ); 	
+}
+
+bool isCarAheadClose(double check_car_s, double car_s){
+	return (check_car_s > car_s) && ( (check_car_s - car_s ) < 30 ); 	
+}
+
+vector<int> getPotentialLanesToShift(int lane){
+	vector<int> fromLane0 { 1 };
+	vector<int> fromLane1 { 0, 2 };
+	vector<int> fromLane2 { 1 };
+
+	switch (lane)
+	{
+	case 0:
+		return fromLane0;
+	case 1:
+		return fromLane1;
+	case 2:
+		return fromLane2;
+	default:
+		throw std::runtime_error("Lane must be 0, 1 or 2, but it is: " + to_string(lane));
+	}	
+
+}
+
+vector<vector<double>> getTrajectoryCoords(vector<double> previous_path_x, vector<double> previous_path_y, tk::spline s, double ref_vel, double ref_x, double ref_y, double ref_yaw){
+			// Define the actual (x, y) points we will use for the planner
+          	vector<double> next_x_vals;
+          	vector<double> next_y_vals;
+
+			// Start with all of the previous path points from last time
+			for(int i = 0; i < previous_path_x.size(); i++){
+				next_x_vals.push_back(previous_path_x[i]);
+				next_y_vals.push_back(previous_path_y[i]);
+			}
+
+			// Calculate how to break up spline points so that we travel at our desired reference velocity
+			double target_x = 30.0;
+			double target_y = s(target_x);
+			double target_dist = sqrt((target_x) * (target_x) + (target_y) * (target_y));
+
+
+			double x_add_on = 0;
+
+			// Fill up the rest of our path planner after filling it previous points,
+			// here we will always output 50 points
+			for(int i = 0; i < 50 - previous_path_x.size(); i++)
+			{
+				double N = (target_dist / (.02 * ref_vel / 2.24));
+				double x_point = x_add_on + (target_x)/N;
+				double y_point = s(x_point);
+
+				x_add_on = x_point;
+
+				double x_ref = x_point;
+				double y_ref = y_point;
+
+				//rotate back to normal after rotating it earlier
+				x_point = (x_ref * cos(ref_yaw) - y_ref * sin(ref_yaw));
+				y_point = (x_ref * sin(ref_yaw) + y_ref * cos(ref_yaw));
+
+				x_point += ref_x;
+				y_point += ref_y;
+
+				next_x_vals.push_back(x_point);
+				next_y_vals.push_back(y_point);
+
+
+
+			}
+
+
+
+
+
+
+			vector<vector<double>> result;
+
+			result.push_back(next_x_vals);	
+			result.push_back(next_y_vals);
+
+			return result;
+  			
+
+
+
+
+}
+
 int main() {
   uWS::Hub h;
 
@@ -259,7 +357,8 @@ int main() {
 			// find ref_v to use
 			for(int i = 0; i < sensor_fusion.size(); i++) {
 				float d = sensor_fusion[i][6];
-				if(d < (2 + (4 * lane) + 2) &&  d > (2 + (4 * lane) - 2 )) {
+				//if(d < (2 + (4 * lane) + 2) &&  d > (2 + (4 * lane) - 2 )) {
+				if(isCarInLane(d, lane)) {
 					double vx = sensor_fusion[i][3];
 					double vy = sensor_fusion[i][4];
 					double check_speed = sqrt(vx * vx + vy * vy);
@@ -269,14 +368,28 @@ int main() {
 					check_car_s += ( (double)prev_size * .02 * check_speed );
 
 					// check s values greater than our car and s gap
-					if( (check_car_s > car_s) && ( (check_car_s - car_s ) < 30 ) ){
+					//if( (check_car_s > car_s) && ( (check_car_s - car_s ) < 30 ) ){
+					if( isCarAheadClose(check_car_s, car_s) ){
 						//Do some logic here, lower reference velocity to avoid crash, could also flag to change lanes
 						//ref_vel = 29.5; //mph
 						too_close = true;
 
-						if(lane > 0) {
-							lane = 0;
+						//Get lanes we can change to
+						auto potentialLanes = getPotentialLanesToShift(lane);
+						
+						for(int i = 0; i < potentialLanes.size(); i++){
+							//Check if there are cars in those lanes close to us
+							if(!isCarInLane(d, potentialLanes[i])){
+								lane = potentialLanes[i];
+								break;
+							}
 						}
+
+
+						//if no change lane
+
+						//if yes reduce speed, keep lane 
+
 					}
 				}
 			}
@@ -357,6 +470,14 @@ int main() {
 			//set (x, y) points to the spline
 			s.set_points(ptsx, ptsy);
 
+
+
+
+  			auto result = getTrajectoryCoords(previous_path_x, previous_path_y, s, ref_vel, ref_x, ref_y, ref_yaw);	
+
+
+/* START BEFORE
+
 			// Define the actual (x, y) points we will use for the planner
           	vector<double> next_x_vals;
           	vector<double> next_y_vals;
@@ -398,28 +519,20 @@ int main() {
 				next_y_vals.push_back(y_point);
 
 
-				/*
-				// Get s coord of the next point.
-				double next_s = car_s + (i + 1) * dist_inc;
 
-				// We are 1.5 lanes away from yellow lane(where waypoints are measured from)
-				// Lanes are 4m wide so d becomes 1.5 * 4 = 6
-				// Setting d to a constant will keep the car in its lane
-				double next_d = 6;
-
-				vector<double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-
-				double next_x = xy[0];
-				double next_y = xy[1];
-
-				next_x_vals.push_back(next_x);
-				next_y_vals.push_back(next_y);
-				*/
 			}
+
 
 
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
+END BEFORE
+
+*/
+
+          	msgJson["next_x"] = result[0];
+          	msgJson["next_y"] = result[1];
+
 
           	auto msg = "42[\"control\","+ msgJson.dump()+"]";
 
