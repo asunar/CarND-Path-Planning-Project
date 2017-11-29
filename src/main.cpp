@@ -169,7 +169,7 @@ bool isCarInLane(float d, int lane)
 
 bool isCarFarEnough(double check_car_s, double car_s)
 {
-	return (abs(check_car_s - car_s) > 100);
+	return (abs(check_car_s - car_s) > 200);
 }
 
 bool isCarAheadClose(double check_car_s, double car_s)
@@ -416,6 +416,9 @@ int main()
 									isSafeToChangeToThisLane = false;
 									break;								
 								}								
+							}
+							else {
+								isSafeToChangeToThisLane = true;
 							} 
 
 						}
