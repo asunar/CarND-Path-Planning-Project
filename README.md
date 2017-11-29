@@ -1,4 +1,37 @@
 # CarND-Path-Planning-Project
+# Writeup
+
+### The code compiles without errors. 
+buildAndRun.sh script may be used for your convenience.
+
+### The car is able to drive at least 4.32 miles without incident
+Tested several times and the car was able to drive without incident in most cases.
+See the demo video for details. For a really cool move check out the lane change at 6:30
+
+### The car drives according to the speed limit.
+The car obeys the speed limit by setting the reference velocity to 49.5 miles.
+If the speed is less than 49.5, it is slowly incremented (main.cpp line 436)
+
+### Max Acceleration and Jerk are not Exceeded.
+Calculate how to break up spline points so that we travel at our desired reference velocity (main.cpp line 212)
+
+### Car does not have collisions
+Code uses isCarInLane (to check if there is another car in our lane) and isCarAheadClose (is the other car less than 30m ahead of our car) methods to check if ego vehicle is too close to another vehicle. If it is too close and there are no potential lanes to shift it slows down. (main.cpp line 439)
+
+### The car stays in its lane, except for the time between changing lanes.
+Code uses previous path, spline and 2 + (4 * lane) expression to stay in its lane.
+
+### The car is able to change lanes
+If the car ahead is too close, the code determines potential lanes to shift using getPotentialLanesToShift method (line 382),
+checks if there is a car in the lane to shift to with isCarInLane method (line 392) and checks if the car in that lane is far enough using isCarFarEnough method (line 401).
+
+If it is safe to change lanes, code sets a flag and car changes lane (line 424). Code sets another flag to speed up after changing lanes.
+
+### Reflection
+Due to the complexity of the project and time constraints, used the spline library to generate the path as explained in the Q&A video. In Frenet added evenly 30m spaced points ahead of the starting reference (line 492), started with all of the previous path points from last time (line 205) and filled up the rest of our path planner after filling it previous points (line 219).
+
+---
+
 Self-Driving Car Engineer Nanodegree Program
    
 ### Simulator.
